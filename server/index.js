@@ -83,11 +83,21 @@ app.get("/v1/redeem/:token", (req, res) => {
 });
 
 // =========================================================
-// Landing Page
+// Landing Page (Token Checking)
 // =========================================================
 
 app.get("/s", (req, res) => {
   const token = req.query.token ?? "";
+
+  let statusMessage = "<b>Please install the browser extension first.</b>";
+
+  if (token) {
+    const row = db.prepare("SELECT expires FROM share_tokens WHERE token = ?").get(token);
+
+    if (!row || Date.now() > row.expires) {
+      statusMessage = "<b>This link has expired.</b>";
+    }
+  }
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
 
@@ -116,14 +126,25 @@ app.get("/s", (req, res) => {
   </style>
 </head>
 <body>
-  <!-- ALWAYS SHOW THIS (content script will overwrite) -->
-  <div id="vault-status"><b>Please install the browser extension first.</b></div>
-
-  <!-- No JavaScript! The extension injects all logic -->
+  <div id="vault-status">${statusMessage}</div>
 </body>
 </html>`);
 });
 
+
+// =========================================================
+// AUTO-CLEAN EXPIRED TOKENS
+// =========================================================
+
+setInterval(() => {
+  const deleted = db.prepare(
+    "DELETE FROM share_tokens WHERE expires < ?"
+  ).run(Date.now());
+
+  if (deleted.changes > 0) {
+    console.log(`🧹 Cleaned ${deleted.changes} expired token(s)`);
+  }
+}, 60 * 1000); // runs every 60 seconds
 
 
 

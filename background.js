@@ -356,6 +356,25 @@ async function getVaultCache() {
   return vaultCache ? JSON.parse(vaultCache) : null;
 }
 
+function generateStrongPassword(length = 16) {
+  const charset =
+    "abcdefghijklmnopqrstuvwxyz" +
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
+    "0123456789" +
+    "!@#$%^&*()-_=+[]{};:,.<>/?";
+
+  let password = "";
+  const array = new Uint32Array(length);
+  crypto.getRandomValues(array);
+
+  for (let i = 0; i < length; i++) {
+    password += charset[array[i] % charset.length];
+  }
+
+  return password;
+}
+
+
 // ========================================================
 // ✅ RIGHT-CLICK MENU (final version)
 // ========================================================
@@ -381,6 +400,12 @@ async function rebuildVaultMenu() {
     });
     return;
   }
+
+  chrome.contextMenus.create({
+    id: "suggestPassword",
+    title: "🔐 Suggest Strong Password",
+    contexts: ["editable"]
+  });
 
   for (const folder of Object.keys(vault.folders ?? {})) {
     const folderId = `f:${folder}`;
@@ -418,7 +443,38 @@ async function rebuildVaultMenu() {
 chrome.runtime.onInstalled.addListener(rebuildVaultMenu);
 chrome.runtime.onStartup.addListener(rebuildVaultMenu);
 
+
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  // 1️⃣ Handle "Suggest Password"
+  if (info.menuItemId === "suggestPassword") {
+    const newPass = generateStrongPassword(16);
+
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: (pw) => {
+        const el = document.activeElement;
+        if (!el || el.type !== "password") return;
+
+        el.value = pw;
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+
+        // 🔥 Make password visible temporarily
+        const originalType = el.type;
+        el.type = "text";
+
+        // Hide again after 4 seconds
+        setTimeout(() => {
+          el.type = originalType;
+        }, 4000);
+      },
+      args: [newPass]
+    });
+
+    return;
+  }
+
+  // 2️⃣ Existing vault autofill logic below:
   const [prefix, folder, index] = info.menuItemId.split(":");
   if (prefix !== "f" || index === undefined) return;
 
@@ -441,6 +497,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     args: [entry.password]
   });
 });
+
 
 // ========================================================
 // ✅ LOGIN CAPTURE

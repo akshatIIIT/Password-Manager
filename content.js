@@ -228,22 +228,16 @@ const log = (...args) => DEBUG && console.log("[VaultCS]", ...args);
 
 
 // ============================================================
-// ✅ 0) LANDING PAGE DETECTION → Rewrite message to "Redirecting…"
+// ✅ 0) LANDING PAGE DETECTION → Rewrite only if NOT expired
 // ============================================================
-//
-// Server always shows: "Please install browser extension first."
-// If extension IS installed, we overwrite it to: "Redirecting…"
-// Then extension continues normally.
-//
 (function detectLandingPageAndOverwrite() {
   let url;
   try { url = new URL(location.href); } catch { return; }
 
-  if (url.pathname !== "/s") return;      // Only modify landing page
+  if (url.pathname !== "/s") return;  // Only modify landing page
+
   const token = url.searchParams.get("token");
   if (!token) return;
-
-  log("Landing page detected. Updating message & redeeming token.");
 
   function ready(cb) {
     if (document.readyState === "loading") {
@@ -253,11 +247,28 @@ const log = (...args) => DEBUG && console.log("[VaultCS]", ...args);
 
   ready(() => {
     const box = document.getElementById("vault-status");
-    if (box) box.innerText = "Redirecting...";
+    if (!box) return;
 
-    // Fire redeem → background will open login tab
+    const currentText = box.innerText.trim().toLowerCase();
+
+    // 🚫 DO NOT MODIFY IF THE SERVER SAYS EXPIRED
+    if (currentText.includes("expired")) {
+      console.log("[VaultCS] Token expired → leaving page untouched.");
+      return;
+    }
+
+    // Otherwise → safe to overwrite
+    box.innerText = "Redirecting...";
+
     chrome.runtime.sendMessage({ action: "REDEEM_SHARE", token }, (resp) => {
-      log("REDEEM_SHARE sent from landing page. Resp:", resp);
+      if (!resp || !resp.ok) {
+        // Server says expired or invalid AFTER redeem attempt
+        box.innerText = "❌ This link has expired or was already used.";
+        return;
+      }
+
+      // Normal success
+      box.innerText = "Redirecting...";
     });
   });
 })();

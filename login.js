@@ -45,6 +45,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 });
 
+document.getElementById("forgotPw").onclick = () => {
+  window.location = "reset_password.html";
+};
+
 // ✅ LOGIN FUNCTION
 async function unlockVault(masterPassword) {
   const data = await chrome.storage.local.get(["vault", "salt"]);

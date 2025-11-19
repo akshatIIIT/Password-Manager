@@ -253,6 +253,7 @@ function extractDisplayHost(loginUrl) {
   }
 }
 
+
 function renderFolders(vault) {
   const div = document.getElementById("folders");
   div.innerHTML = "";
@@ -284,15 +285,44 @@ function renderPasswords(folder, vault) {
     text.textContent = `${display} — ${masked}`;
     row.appendChild(text);
 
+    // -----------------------
+    // Share button
+    // -----------------------
     const shareBtn = document.createElement("button");
     shareBtn.textContent = "Share";
     shareBtn.style.marginLeft = "12px";
     shareBtn.onclick = () => createShareLink(entry);
-
     row.appendChild(shareBtn);
+
+    // -----------------------
+    // ❌ Delete button (inline)
+    // -----------------------
+    const deleteBtn = document.createElement("button");
+    deleteBtn.textContent = "Delete";
+    deleteBtn.style.marginLeft = "6px";
+    deleteBtn.style.background = "#d32f2f";   // Red
+    deleteBtn.style.color = "white";
+
+    deleteBtn.onclick = async () => {
+      if (!confirm("Delete this password?")) return;
+
+      // Remove entry
+      vault.folders[folder].splice(i, 1);
+
+      // Save changes
+      await saveVault(vault);
+
+      // Refresh UI
+      renderPasswords(folder, vault);
+      renderFolders(vault);
+    };
+
+    row.appendChild(deleteBtn);
+
     list.appendChild(row);
   });
 }
+
 
 // ==========================================================
 // FOLDER + LOGOUT
@@ -330,6 +360,55 @@ document.addEventListener("DOMContentLoaded", async () => {
   renderFolders(vault);
 });
 
+document.getElementById("addPasswordBtn").onclick = async () => {
+  const vault = await getVault();
+  if (!vault) return;
+
+  // Step 1: choose folder
+  const folders = Object.keys(vault.folders ?? {});
+  if (!folders.length) {
+    alert("Create a folder first!");
+    return;
+  }
+
+  const folder = prompt("Which folder? Available:\n" + folders.join(", "));
+  if (!folder || !vault.folders[folder]) {
+    alert("Invalid folder.");
+    return;
+  }
+
+  // Step 2: login URL
+  const loginUrl = prompt("Enter Login URL:");
+  if (!loginUrl) return;
+
+  // Step 3: username
+  const username = prompt("Enter Username:");
+  if (!username) return;
+
+  // Step 4: password
+  const password = prompt("Enter Password:");
+  if (!password) return;
+
+  // Create entry
+  const entry = {
+    loginUrl,
+    username,
+    password
+  };
+
+  // Save to folder
+  vault.folders[folder].push(entry);
+
+  // Save vault
+  await saveVault(vault);
+
+  // Refresh UI
+  renderFolders(vault);
+
+  alert("✅ Password saved!");
+};
+
+
 // ==========================================================
 // ✅ SERVER SHARE CREATION
 // ==========================================================
@@ -363,6 +442,7 @@ async function createShareLink(entry) {
     );
   });
 }
+
 
 
 
